@@ -8,6 +8,9 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR AND NOT CMAKE_HOST_WIN32)
 endif()
 
 project(RiftgateCompanion)
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 enable_language(CXX)
 
 if (CMAKE_BUILD_TYPE STREQUAL "Release")
@@ -72,7 +75,7 @@ target_link_libraries(imgui PUBLIC
 FetchContent_Declare(
     gd_dllloader
     GIT_REPOSITORY https://github.com/elmodor/grimdawn-dllloader.git
-    GIT_TAG c1ff349caf55e006beefeaf563c6a5b90f5d4f75
+    GIT_TAG 41da0d27584b73d5bdca0784203d765c465b2d9d
     GIT_PROGRESS TRUE)
 FetchContent_MakeAvailable(gd_dllloader)
 add_custom_target(copy_winmm ALL
