@@ -1,0 +1,48 @@
+name: Publish Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake mingw-w64 python3 zip
+
+      - name: Configure
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: |
+          cmake --build build --parallel
+
+      - name: Package
+        run: |
+          set -eux
+
+          mkdir -p dist
+          test -f build/RiftgateCompanion.dll
+          test -f build/winmm.dll
+          cp build/RiftgateCompanion.dll dist/
+          cp build/winmm.dll dist/
+          pushd dist
+          zip -9 "../RiftgateCompanion-${GITHUB_REF_NAME}.zip" RiftgateCompanion.dll winmm.dll
+          popd
+
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" "RiftgateCompanion-${GITHUB_REF_NAME}.zip" --draft --generate-notes --title "RiftgateCompanion ${GITHUB_REF_NAME}" --verify-tag
