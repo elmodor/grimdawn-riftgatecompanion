@@ -28,7 +28,8 @@ Ingame press `F6` to toggle the companion. The keybind can be changed in the set
 
 ### Linux
 Add `WINEDLLOVERRIDES="winmm=n,b" %command%` to your games steam launch option (or similar for other launchers with GOG).  
-If you use `Play Grim Dawn (x64) - Compatibility Mode (SteamOS/Linux)` you might have to copy both dlls to the compat folder inside the Grim Dawn installation as well (I haven't tested this yet).
+If you use `Play Grim Dawn (x64) - Compatibility Mode (SteamOS/Linux)` you have to copy both dlls to the compat folder inside the Grim Dawn installation as well.  
+I have tested both methods.
 
 ## Building
 ```bash
