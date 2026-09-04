@@ -12,6 +12,7 @@ Only works for the x64 version of the game.
 * Set a favorite town and teleport to it via a single button press
 * Teleport to nearest town via a single button press
 * Automatically creates a personal riftgate when teleporting (as the game does)
+* You can only teleport if you would be able to normally
 
 ## Additional Features
 Some minor additions which are not necessary related to riftgates:
@@ -26,10 +27,11 @@ If you have any other methods of injecting dlls into your game (SpecialK or manu
 
 Ingame press `F6` to toggle the companion. The keybind can be changed in the settings.
 
-### Linux
+### Linux specific
 Add `WINEDLLOVERRIDES="winmm=n,b" %command%` to your games steam launch option (or similar for other launchers with GOG).  
 If you use `Play Grim Dawn (x64) - Compatibility Mode (SteamOS/Linux)` you have to copy both dlls to the compat folder inside the Grim Dawn installation as well.  
-I have tested both methods.
+I have tested both methods (with DPYes too).  
+SpecialK injecting should work as well.
 
 ## Building
 ```bash
