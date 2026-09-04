@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build'
+        required: true
+        default: 'v1.0'
 
 permissions:
   contents: write
@@ -19,6 +25,15 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y cmake mingw-w64 python3 zip
+
+      - name: Determine Version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION="${GITHUB_REF_NAME}"
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
 
       - name: Configure
         run: |
@@ -38,11 +53,19 @@ jobs:
           cp build/RiftgateCompanion.dll dist/
           cp build/winmm.dll dist/
           pushd dist
-          zip -9 "../RiftgateCompanion-${GITHUB_REF_NAME}.zip" RiftgateCompanion.dll winmm.dll
+          zip -9 "../RiftgateCompanion-${VERSION}.zip" RiftgateCompanion.dll winmm.dll
           popd
 
+      - name: Upload Artifact
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v6
+        with:
+          name: RiftgateCompanion
+          path: "RiftgateCompanion-${{ env.VERSION }}.zip"
+
       - name: Create draft release
+        if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "${GITHUB_REF_NAME}" "RiftgateCompanion-${GITHUB_REF_NAME}.zip" --draft --generate-notes --title "RiftgateCompanion ${GITHUB_REF_NAME}" --verify-tag
+          gh release create "${VERSION}" "RiftgateCompanion-${VERSION}.zip" --draft --generate-notes --title "RiftgateCompanion ${VERSION}" --verify-tag
