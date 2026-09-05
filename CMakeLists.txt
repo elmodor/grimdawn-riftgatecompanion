@@ -75,7 +75,7 @@ target_link_libraries(imgui PUBLIC
 FetchContent_Declare(
     gd_dllloader
     GIT_REPOSITORY https://github.com/elmodor/grimdawn-dllloader.git
-    GIT_TAG 41da0d27584b73d5bdca0784203d765c465b2d9d
+    GIT_TAG 66cb2a0c8a3bec92a31587b441bc4919515c3122
     GIT_PROGRESS TRUE)
 FetchContent_MakeAvailable(gd_dllloader)
 add_custom_target(copy_winmm ALL
