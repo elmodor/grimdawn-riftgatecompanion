@@ -489,7 +489,7 @@ static HMODULE GameModule()
 {
     static HMODULE mod = nullptr;
     if (!mod)
-        mod = GetModuleHandleA("Game.dll");
+        mod = GetModuleHandleW(L"Game.dll");
     return mod;
 }
 
@@ -497,7 +497,7 @@ static HMODULE EngineModule()
 {
     static HMODULE mod = nullptr;
     if (!mod)
-        mod = GetModuleHandleA("Engine.dll");
+        mod = GetModuleHandleW(L"Engine.dll");
     return mod;
 }
 
@@ -2213,10 +2213,10 @@ bool InstallHooks(void* present)
     HMODULE engine = nullptr;
     while(true)
     {
-        dxgi = GetModuleHandleA("dxgi.dll");
-        d3d11 = GetModuleHandleA("d3d11.dll");
-        game = GetModuleHandleA("Game.dll");
-        engine = GetModuleHandleA("Engine.dll");
+        dxgi = GetModuleHandleW(L"dxgi.dll");
+        d3d11 = GetModuleHandleW(L"d3d11.dll");
+        game = GetModuleHandleW(L"Game.dll");
+        engine = GetModuleHandleW(L"Engine.dll");
         if(dxgi && d3d11 && game && engine)
             break;
         Sleep(100);
