@@ -33,6 +33,9 @@ static const std::unordered_map<std::string_view, std::string> g_GameSymbols = {
 };
 
 static const std::unordered_map<std::string_view, std::string> g_EngineSymbols = {
+    // UI
+    {"sym.Engine.dll__ProcessUserInput_Engine_GAME__QEAAXXZ", "?ProcessUserInput@Engine@GAME@@QEAAXXZ"},
+    {"sym.Engine.dll__GetInputDevice_Engine_GAME__QEAAPEAVInputDevice_2_XZ", "?GetInputDevice@Engine@GAME@@QEAAPEAVInputDevice@2@XZ"},
     // Teleport
     {"sym.Engine.dll__GetWorldPosition_WorldVec3_GAME__QEBA_AVVec3_2_XZ", "?GetWorldPosition@WorldVec3@GAME@@QEBA?AVVec3@2@XZ"},
     // Language

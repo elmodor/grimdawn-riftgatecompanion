@@ -1267,72 +1267,56 @@ void __fastcall hkPlayerManagerSetMainPlayer(void* manager, std::uint32_t player
     }
 }
 
-using GetRawInputData_t = UINT (WINAPI*)(HRAWINPUT, UINT, LPVOID, PUINT, UINT);
-GetRawInputData_t oGetRawInputData = nullptr;
-UINT WINAPI hkGetRawInputData(HRAWINPUT hRawInput, UINT uiCommand, LPVOID pData, PUINT pcbSize, UINT cbSizeHeader)
+using GetInputDevice_t = void*(*)(void* engine);
+using ProcessUserInput_t = void(*)(void* engine);
+using InputDeviceProcessed_t = void(*)(void* inputDevice);
+ENGINE_FN(GetInputDeviceFn, GetInputDevice_t, "sym.Engine.dll__GetInputDevice_Engine_GAME__QEAAPEAVInputDevice_2_XZ");
+void* GetInputDeviceFn(void* engine)
 {
-    UINT result = oGetRawInputData(hRawInput, uiCommand, pData, pcbSize, cbSizeHeader);
-
+    static auto inputDevice = GetInputDeviceFn();
+    if (!inputDevice || !engine)
+        return nullptr;
+    return inputDevice(engine);
+}
+ProcessUserInput_t oProcessUserInput = nullptr;
+void hkProcessUserInput(void* engine)
+{
     if (!menuOpen)
-        return result;
-    if (!pData || result == 0)
-        return result;
-    if (!ImGui::GetCurrentContext())
-        return result;
+    {
+        oProcessUserInput(engine);
+        return;
+    }
 
+    if (!ImGui::GetCurrentContext())
+    {
+        oProcessUserInput(engine);
+        return;
+    }
     ImGuiIO& io = ImGui::GetIO();
     if (!io.WantCaptureKeyboard && !io.WantCaptureMouse)
-        return result;
-
-    RAWINPUT* raw = static_cast<RAWINPUT*>(pData);
-    if (raw && uiCommand == RID_INPUT)
     {
-        if (raw->header.dwType == RIM_TYPEMOUSE)
-        {
-            if (menuReleaseMouse)
-            {
-                // Inject releases
-                raw->data.mouse.usButtonFlags =
-                    RI_MOUSE_LEFT_BUTTON_UP |
-                    RI_MOUSE_RIGHT_BUTTON_UP |
-                    RI_MOUSE_MIDDLE_BUTTON_UP |
-                    RI_MOUSE_BUTTON_4_UP |
-                    RI_MOUSE_BUTTON_5_UP;
-
-                raw->data.mouse.lLastX = 0;
-                raw->data.mouse.lLastY = 0;
-
-                menuReleaseMouse = false;
-            }
-            else if(io.WantCaptureMouse || io.WantCaptureKeyboard)
-            {
-                raw->data.mouse.lLastX = 0;
-                raw->data.mouse.lLastY = 0;
-                raw->data.mouse.usButtonFlags = 0;
-                raw->data.mouse.usButtonData = 0;
-            }
-        }
-
-        if (raw->header.dwType == RIM_TYPEKEYBOARD)
-        {
-            if (menuReleaseKeyboard)
-            {
-                raw->data.keyboard.Flags |= RI_KEY_BREAK;
-                raw->data.keyboard.Message = WM_KEYUP;
-
-                menuReleaseKeyboard = false;
-            }
-            else if(io.WantCaptureKeyboard || io.WantCaptureMouse)
-            {
-                if (!(raw->data.keyboard.Flags & RI_KEY_BREAK))
-                {
-                    raw->data.keyboard.Flags |= RI_KEY_BREAK;
-                    raw->data.keyboard.Message = WM_KEYUP;
-                }
-            }
-        }
+        oProcessUserInput(engine);
+        return;
     }
-    return result;
+    void* inputDevice = GetInputDeviceFn(engine);
+    if (!inputDevice)
+    {
+        oProcessUserInput(engine);
+        return;
+    }
+    auto vtable = *reinterpret_cast<uintptr_t**>(inputDevice);
+    if (!vtable)
+    {
+        oProcessUserInput(engine);
+        return;
+    }
+    auto inputDeviceProcessed = reinterpret_cast<InputDeviceProcessed_t>(vtable[2]);
+    if (!inputDeviceProcessed)
+    {
+        oProcessUserInput(engine);
+        return;
+    }
+    inputDeviceProcessed(inputDevice);
 }
 
 void closeMenu()
@@ -1343,6 +1327,12 @@ void closeMenu()
     menuSortTeleports = true;
     menuSortTowns = true;
     menuFavoriteTowns = true;
+
+    if(ImGui::GetCurrentContext())
+    {
+        ImGuiIO &io = ImGui::GetIO();
+        io.ConfigFlags |= ImGuiConfigFlags_NoMouseCursorChange;
+    }
 }
 
 void UpdateMenuToggle()
@@ -1362,6 +1352,12 @@ void UpdateMenuToggle()
         }
         else
         {
+            if(ImGui::GetCurrentContext())
+            {
+                ImGuiIO &io = ImGui::GetIO();
+                io.ConfigFlags &= ~ImGuiConfigFlags_NoMouseCursorChange;
+            }
+
             menuOpen = true;
             menuReleaseMouse = true;
             menuReleaseKeyboard = true;
@@ -1410,6 +1406,9 @@ HRESULT __stdcall HookPresent(IDXGISwapChain* swap, UINT sync, UINT flags)
     {
         if(menuOpen)
         {
+            ImGuiIO& io = ImGui::GetIO();
+            if (io.WantCaptureKeyboard || io.WantCaptureMouse)
+                SetCursor(LoadCursor(nullptr, IDC_ARROW));
             ImGui::SetNextWindowSize(ImVec2(750, 550), ImGuiCond_FirstUseEver);
             ImGui::Begin(l.tr(TextId::WindowName));
             ImGui::Text(l.tr(TextId::MainTextUpdate));
@@ -1423,6 +1422,10 @@ HRESULT __stdcall HookPresent(IDXGISwapChain* swap, UINT sync, UINT flags)
 
         if(menuOpen)
         {
+            ImGuiIO& io = ImGui::GetIO();
+            if (io.WantCaptureKeyboard || io.WantCaptureMouse)
+                SetCursor(LoadCursor(nullptr, IDC_ARROW));
+
             ImGui::SetNextWindowSize(ImVec2(750, 550), ImGuiCond_FirstUseEver);
             ImGui::Begin(l.tr(TextId::WindowName));
 
@@ -2030,42 +2033,6 @@ HRESULT __stdcall HookPresent(IDXGISwapChain* swap, UINT sync, UINT flags)
 LRESULT CALLBACK HookWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     ImGui_ImplWin32_WndProcHandler(hwnd, msg, wParam, lParam);
-
-    ImGuiIO& io = ImGui::GetIO();
-    if (io.WantCaptureMouse)
-    {
-        switch (msg)
-        {
-            case WM_MOUSEMOVE:
-            case WM_MOUSEWHEEL:
-            case WM_LBUTTONDOWN:
-            case WM_LBUTTONUP:
-            case WM_RBUTTONDOWN:
-            case WM_RBUTTONUP:
-            case WM_MBUTTONDOWN:
-            case WM_MBUTTONUP:
-                return 0;
-        }
-    }
-
-    if (io.WantCaptureKeyboard)
-    {
-        switch (msg)
-        {
-            case WM_KEYDOWN:
-            case WM_KEYUP:
-            case WM_CHAR:
-                return 0;
-        }
-    }
-
-    static bool once = false;
-    if (!once)
-    {
-        Log("WndProc hook active");
-        once = true;
-    }
-
     return CallWindowProc(g_OriginalWndProc, hwnd, msg, wParam, lParam);
 }
 
@@ -2119,6 +2086,8 @@ void InitImGui(IDXGISwapChain* swap)
         loadLanguage(GetLanguageName());
     else
         loadLanguage(ToString(uiLanguage));
+
+    closeMenu();
     imguiInitialized=true;
 
     Log("ImGui initialized");
@@ -2228,18 +2197,18 @@ bool InstallHooks(void* present)
 
     if(!updateReq)
     {
+        // UI
+        InstallHook(
+                "sym.Engine.dll__ProcessUserInput_Engine_GAME__QEAAXXZ",
+                reinterpret_cast<LPVOID>(&hkProcessUserInput),
+                reinterpret_cast<LPVOID*>(&oProcessUserInput)
+                );
         // Teleport
         InstallHook(
                 "sym.Game.dll__CreateFixedItemTeleportNetHook_GameEngine_GAME__QEAAXAEBVWorldCoords_2_IIAEBV__basic_string_DU__char_traits_D_std__V__allocator_D_2__std___Z",
                 reinterpret_cast<LPVOID>(&hkCreateFixedItemTeleportNetHook),
                 reinterpret_cast<LPVOID*>(&oCreateFixedItemTeleportNetHook)
                 );
-        InstallHookApi(
-                L"user32",
-                "GetRawInputData",
-                reinterpret_cast<LPVOID>(hkGetRawInputData),
-                reinterpret_cast<LPVOID*>(&oGetRawInputData),
-                reinterpret_cast<LPVOID>(&GetRawInputData));
 #ifndef NOLOG
         // Riftgate UID logging
         InstallHook(
@@ -2291,6 +2260,13 @@ bool InstallHooks(void* present)
     return true;
 }
 
+static bool IsWine()
+{
+    HMODULE ntdll = GetModuleHandleW(L"ntdll.dll");
+    if (!ntdll)
+        return false;
+    return GetProcAddress(ntdll, "wine_get_version") != nullptr;
+}
 static LRESULT CALLBACK TmpWindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     return DefWindowProcA(hwnd, msg, wParam, lParam);
@@ -2298,26 +2274,32 @@ static LRESULT CALLBACK TmpWindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM
 void* GetPresentAddress()
 {
     // Create tmp window for tmp d3d11 device
-    HINSTANCE instance = GetModuleHandleA(nullptr);
+    HWND hwnd = nullptr;
+    HINSTANCE instance = nullptr;
     WNDCLASSA wc = {};
-    wc.lpfnWndProc = TmpWindowProc;
-    wc.hInstance = instance;
-    wc.lpszClassName = "RiftgateCompanionTmp";
-    if (!RegisterClassA(&wc))
+    bool isWine = IsWine();
+    if(!isWine)
     {
-        DWORD error = GetLastError();
-        if (error != ERROR_CLASS_ALREADY_EXISTS)
+        instance = GetModuleHandleW(nullptr);
+        wc.lpfnWndProc = TmpWindowProc;
+        wc.hInstance = instance;
+        wc.lpszClassName = "RiftgateCompanionTmp";
+        if (!RegisterClassA(&wc))
         {
-            Log("RegisterClass failed: %lu", error);
+            DWORD error = GetLastError();
+            if (error != ERROR_CLASS_ALREADY_EXISTS)
+            {
+                Log("RegisterClass failed: %lu", error);
+                return nullptr;
+            }
+        }
+        hwnd = CreateWindowExA(0, wc.lpszClassName, "RiftgateCompanionTmp", WS_OVERLAPPEDWINDOW, 0, 0, 1, 1, nullptr, nullptr, instance, nullptr);
+        if (!hwnd)
+        {
+            Log("CreateWindowEx failed: %lu", GetLastError());
+            UnregisterClassA(wc.lpszClassName, instance);
             return nullptr;
         }
-    }
-    HWND hwnd = CreateWindowExA(0, wc.lpszClassName, "RiftgateCompanionTmp", WS_OVERLAPPEDWINDOW, 0, 0, 1, 1, nullptr, nullptr, instance, nullptr);
-    if (!hwnd)
-    {
-        Log("CreateWindowEx failed: %lu", GetLastError());
-        UnregisterClassA(wc.lpszClassName, instance);
-        return nullptr;
     }
     // Create tmp d3d11 device to obtain games swapchain
     DXGI_SWAP_CHAIN_DESC desc = {};
@@ -2326,7 +2308,7 @@ void* GetPresentAddress()
     desc.BufferDesc.Height = 1;
     desc.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
     desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-    desc.OutputWindow = hwnd;
+    desc.OutputWindow = isWine ? GetDesktopWindow() : hwnd;
     desc.SampleDesc.Count = 1;
     desc.Windowed = TRUE;
     desc.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
@@ -2341,8 +2323,11 @@ void* GetPresentAddress()
         if (context) context->Release();
         if (device) device->Release();
         if (swapChain) swapChain->Release();
-        DestroyWindow(hwnd);
-        UnregisterClassA(wc.lpszClassName, instance);
+        if(!isWine)
+        {
+            DestroyWindow(hwnd);
+            UnregisterClassA(wc.lpszClassName, instance);
+        }
         return nullptr;
     }
     if (!swapChain || !device || !context)
@@ -2351,8 +2336,11 @@ void* GetPresentAddress()
         if (context) context->Release();
         if (device) device->Release();
         if (swapChain) swapChain->Release();
-        DestroyWindow(hwnd);
-        UnregisterClassA(wc.lpszClassName, instance);
+        if(!isWine)
+        {
+            DestroyWindow(hwnd);
+            UnregisterClassA(wc.lpszClassName, instance);
+        }
         return nullptr;
     }
     Log("Obtained tmp swapchain: %p", swapChain);
@@ -2363,8 +2351,11 @@ void* GetPresentAddress()
     if (context) context->Release();
     if (device) device->Release();
     if (swapChain) swapChain->Release();
-    DestroyWindow(hwnd);
-    UnregisterClassA(wc.lpszClassName, instance);
+    if(!isWine)
+    {
+        DestroyWindow(hwnd);
+        UnregisterClassA(wc.lpszClassName, instance);
+    }
     return present;
 }
 
