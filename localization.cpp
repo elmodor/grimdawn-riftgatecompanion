@@ -22,7 +22,7 @@ namespace
 
     static constexpr std::array EnglishEntries =
     {
-        TranslationEntry{ TextId::WindowName,   "RiftgateCompanion - v0.2.1###Main" },
+        TranslationEntry{ TextId::WindowName,   "RiftgateCompanion - " RIFTGATE_VERSION "###Main" },
         TranslationEntry{ TextId::MainTextUpdate,   "Incompatible game version! Update required" },
         TranslationEntry{ TextId::MainButtonNearestTown,   "Nearest town: " },
         TranslationEntry{ TextId::MainTeleportTableRifts,   "Rifts" },

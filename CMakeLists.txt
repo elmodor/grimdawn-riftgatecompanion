@@ -107,6 +107,20 @@ target_link_options(RiftgateCompanion PRIVATE
     -static-libstdc++
 )
 
+execute_process(
+    COMMAND git describe --tags --abbrev=0
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    OUTPUT_VARIABLE GIT_TAG
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+if(NOT CMAKE_BUILD_TYPE STREQUAL "Release")
+    set(RIFTGATE_VERSION "${GIT_TAG}-dev")
+endif()
+
+target_compile_definitions(RiftgateCompanion PRIVATE
+    RIFTGATE_VERSION="${GIT_TAG}"
+)
+
 set_target_properties(RiftgateCompanion PROPERTIES
     PREFIX ""
     OUTPUT_NAME "RiftgateCompanion"
