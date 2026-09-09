@@ -1406,9 +1406,6 @@ HRESULT __stdcall HookPresent(IDXGISwapChain* swap, UINT sync, UINT flags)
     {
         if(menuOpen)
         {
-            ImGuiIO& io = ImGui::GetIO();
-            if (io.WantCaptureKeyboard || io.WantCaptureMouse)
-                SetCursor(LoadCursor(nullptr, IDC_ARROW));
             ImGui::SetNextWindowSize(ImVec2(750, 550), ImGuiCond_FirstUseEver);
             ImGui::Begin(l.tr(TextId::WindowName));
             ImGui::Text(l.tr(TextId::MainTextUpdate));
@@ -1422,10 +1419,6 @@ HRESULT __stdcall HookPresent(IDXGISwapChain* swap, UINT sync, UINT flags)
 
         if(menuOpen)
         {
-            ImGuiIO& io = ImGui::GetIO();
-            if (io.WantCaptureKeyboard || io.WantCaptureMouse)
-                SetCursor(LoadCursor(nullptr, IDC_ARROW));
-
             ImGui::SetNextWindowSize(ImVec2(750, 550), ImGuiCond_FirstUseEver);
             ImGui::Begin(l.tr(TextId::WindowName));
 
@@ -2033,6 +2026,14 @@ HRESULT __stdcall HookPresent(IDXGISwapChain* swap, UINT sync, UINT flags)
 LRESULT CALLBACK HookWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     ImGui_ImplWin32_WndProcHandler(hwnd, msg, wParam, lParam);
+    if (menuOpen && msg == WM_SETCURSOR && ImGui::GetCurrentContext())
+    {
+        ImGuiIO& io = ImGui::GetIO();
+        if (io.WantCaptureKeyboard || io.WantCaptureMouse || ImGui::IsWindowFocused(ImGuiFocusedFlags_AnyWindow))
+        {
+            return TRUE;
+        }
+    }
     return CallWindowProc(g_OriginalWndProc, hwnd, msg, wParam, lParam);
 }
 
