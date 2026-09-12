@@ -49,6 +49,9 @@ static bool g_waitingForKey = false;
 static bool g_captureArmed = false;
 static bool languageChanged = false;
 
+
+void InstallShatteredRealmHooks();
+void InstallQuestTrackingHooks();
 static UINT g_toggleKey = VK_F6;
 static std::atomic<bool> showEndlessDungeonNotify = false;
 static std::atomic<bool> isEndlessDungeonComplete = false;
@@ -1878,6 +1881,8 @@ HRESULT __stdcall HookPresent(IDXGISwapChain* swap, UINT sync, UINT flags)
 
                     if (ImGui::Checkbox(l.tr(TextId::SettingsCheckEnabledEndlessDungeonNotifyPortal), &enabledEndlessDungeonNotifyPortal))
                     {
+                        if (enabledEndlessDungeonNotifyPortal)
+                            InstallShatteredRealmHooks();
                         ImGui::MarkIniSettingsDirty();
                     }
 
@@ -1899,6 +1904,8 @@ HRESULT __stdcall HookPresent(IDXGISwapChain* swap, UINT sync, UINT flags)
 
                     if (ImGui::Checkbox(l.tr(TextId::SettingsCheckEnabledQuestTrackRestore), &enabledQuestTrackRestore))
                     {
+                        if (enabledQuestTrackRestore)
+                            InstallQuestTrackingHooks();
                         ImGui::MarkIniSettingsDirty();
                     }
 
@@ -2088,6 +2095,11 @@ void InitImGui(IDXGISwapChain* swap)
     else
         loadLanguage(ToString(uiLanguage));
 
+    if (enabledEndlessDungeonNotifyPortal)
+        InstallShatteredRealmHooks();
+    if (enabledQuestTrackRestore)
+        InstallQuestTrackingHooks();
+
     closeMenu();
     imguiInitialized=true;
 
@@ -2127,8 +2139,11 @@ bool InstallHook(const char* name, LPVOID detour, LPVOID* original)
         }
     }
     uintptr_t addr = it->second;
-    if (MH_CreateHook(reinterpret_cast<LPVOID>(addr), detour, original) != MH_OK)
+    MH_STATUS status = MH_CreateHook(reinterpret_cast<LPVOID>(addr), detour, original);
+    if (status != MH_OK)
     {
+        if (status == MH_ERROR_ALREADY_CREATED)
+            return true;
         Log("MH_CreateHook failed: %s", name);
         return false;
     }
@@ -2157,7 +2172,86 @@ bool InstallHookApi(LPCWSTR module, LPCSTR name, LPVOID detour, LPVOID* original
     return true;
 }
 
-bool InstallHooks(void* present)
+void InstallCoreHooks()
+{
+    if(updateReq)
+        return;
+
+    // UI
+    InstallHook(
+            "sym.Engine.dll__ProcessUserInput_Engine_GAME__QEAAXXZ",
+            reinterpret_cast<LPVOID>(&hkProcessUserInput),
+            reinterpret_cast<LPVOID*>(&oProcessUserInput)
+            );
+    // Teleport
+    InstallHook(
+            "sym.Game.dll__CreateFixedItemTeleportNetHook_GameEngine_GAME__QEAAXAEBVWorldCoords_2_IIAEBV__basic_string_DU__char_traits_D_std__V__allocator_D_2__std___Z",
+            reinterpret_cast<LPVOID>(&hkCreateFixedItemTeleportNetHook),
+            reinterpret_cast<LPVOID*>(&oCreateFixedItemTeleportNetHook)
+            );
+#ifndef NOLOG
+    // Riftgate UID logging
+    InstallHook(
+            "sym.Engine.dll__Attach_Actor_GAME__UEAAXPEAVEntity_2_AEBVCoords_2_AEBVName_2__N333_Z",
+            reinterpret_cast<LPVOID>(&hkActorAttach),
+            reinterpret_cast<LPVOID*>(&oActorAttach)
+            );
+#endif
+    // Language
+    InstallHook(
+            "sym.Engine.dll__ReloadLanguage_LocalizationManager_GAME__QEAAXPEBD_Z",
+            reinterpret_cast<LPVOID>(&hkReloadLanguage),
+            reinterpret_cast<LPVOID*>(&oReloadLanguage)
+            );
+}
+
+void InstallShatteredRealmHooks()
+{
+    if(updateReq)
+        return;
+
+    // Shattered Realm notification
+    InstallHook(
+            "sym.Game.dll__RTTI_new_FixedItemDungeonTeleport_GAME__KAPEAXXZ",
+            reinterpret_cast<LPVOID>(&hkRTTI_new_FixedItemDungeonTeleport),
+            reinterpret_cast<LPVOID*>(&oRTTI_new_FixedItemDungeonTeleport)
+            );
+    InstallHook(
+            "sym.Game.dll__SyncDungeonProgress_GameEngine_GAME__QEAAXI_Z",
+            reinterpret_cast<LPVOID>(&hkSyncDungeonProgress),
+            reinterpret_cast<LPVOID*>(&oSyncDungeonProgress)
+            );
+    InstallHook(
+            "sym.Game.dll__Clear_EndlessDungeon_Generator_GAME__QEAAXXZ",
+            reinterpret_cast<LPVOID>(&hkClearEndlessDungeonGenerator),
+            reinterpret_cast<LPVOID*>(&oClearEndlessDungeonGenerator)
+            );
+    InstallHook(
+            "sym.Game.dll__RequestToUse_FixedItemDungeonTeleport_GAME__UEAAXI_Z",
+            reinterpret_cast<LPVOID>(&hkRequestToUse_FixedItemDungeonTeleport),
+            reinterpret_cast<LPVOID*>(&oRequestToUse_FixedItemDungeonTeleport)
+            );
+}
+
+void InstallQuestTrackingHooks()
+{
+    if(updateReq)
+        return;
+
+    // Quest tracking
+    InstallHook(
+            "sym.Game.dll__SetTracked_Quest2_GAME__QEAAX_N_Z",
+            reinterpret_cast<LPVOID>(&hkSetTracked),
+            reinterpret_cast<LPVOID*>(&oSetTracked)
+            );
+    InstallHook(
+            "sym.Game.dll__SetMainPlayer_PlayerManagerClient_GAME__QEAAXI_Z",
+            reinterpret_cast<LPVOID>(&hkPlayerManagerSetMainPlayer),
+            reinterpret_cast<LPVOID*>(&oPlayerManagerSetMainPlayer)
+            );
+}
+
+bool InitMinhook(void* present)
 {
     Log("Installing D3D11 hook");
 
@@ -2196,67 +2290,7 @@ bool InstallHooks(void* present)
     fillFunctionAddresses(g_GameSymbols, GameModule(), g_GameAddresses);
     fillFunctionAddresses(g_EngineSymbols, EngineModule(), g_EngineAddresses);
 
-    if(!updateReq)
-    {
-        // UI
-        InstallHook(
-                "sym.Engine.dll__ProcessUserInput_Engine_GAME__QEAAXXZ",
-                reinterpret_cast<LPVOID>(&hkProcessUserInput),
-                reinterpret_cast<LPVOID*>(&oProcessUserInput)
-                );
-        // Teleport
-        InstallHook(
-                "sym.Game.dll__CreateFixedItemTeleportNetHook_GameEngine_GAME__QEAAXAEBVWorldCoords_2_IIAEBV__basic_string_DU__char_traits_D_std__V__allocator_D_2__std___Z",
-                reinterpret_cast<LPVOID>(&hkCreateFixedItemTeleportNetHook),
-                reinterpret_cast<LPVOID*>(&oCreateFixedItemTeleportNetHook)
-                );
-#ifndef NOLOG
-        // Riftgate UID logging
-        InstallHook(
-                "sym.Engine.dll__Attach_Actor_GAME__UEAAXPEAVEntity_2_AEBVCoords_2_AEBVName_2__N333_Z",
-                reinterpret_cast<LPVOID>(&hkActorAttach),
-                reinterpret_cast<LPVOID*>(&oActorAttach)
-                );
-#endif
-        // Language
-        InstallHook(
-                "sym.Engine.dll__ReloadLanguage_LocalizationManager_GAME__QEAAXPEBD_Z",
-                reinterpret_cast<LPVOID>(&hkReloadLanguage),
-                reinterpret_cast<LPVOID*>(&oReloadLanguage)
-                );
-        // Shattered Realm notification
-        InstallHook(
-                "sym.Game.dll__RTTI_new_FixedItemDungeonTeleport_GAME__KAPEAXXZ",
-                reinterpret_cast<LPVOID>(&hkRTTI_new_FixedItemDungeonTeleport),
-                reinterpret_cast<LPVOID*>(&oRTTI_new_FixedItemDungeonTeleport)
-                );
-        InstallHook(
-                "sym.Game.dll__SyncDungeonProgress_GameEngine_GAME__QEAAXI_Z",
-                reinterpret_cast<LPVOID>(&hkSyncDungeonProgress),
-                reinterpret_cast<LPVOID*>(&oSyncDungeonProgress)
-                );
-        InstallHook(
-                "sym.Game.dll__Clear_EndlessDungeon_Generator_GAME__QEAAXXZ",
-                reinterpret_cast<LPVOID>(&hkClearEndlessDungeonGenerator),
-                reinterpret_cast<LPVOID*>(&oClearEndlessDungeonGenerator)
-                );
-        InstallHook(
-                "sym.Game.dll__RequestToUse_FixedItemDungeonTeleport_GAME__UEAAXI_Z",
-                reinterpret_cast<LPVOID>(&hkRequestToUse_FixedItemDungeonTeleport),
-                reinterpret_cast<LPVOID*>(&oRequestToUse_FixedItemDungeonTeleport)
-                );
-        // Quest tracking
-        InstallHook(
-                "sym.Game.dll__SetTracked_Quest2_GAME__QEAAX_N_Z",
-                reinterpret_cast<LPVOID>(&hkSetTracked),
-                reinterpret_cast<LPVOID*>(&oSetTracked)
-                );
-        InstallHook(
-                "sym.Game.dll__SetMainPlayer_PlayerManagerClient_GAME__QEAAXI_Z",
-                reinterpret_cast<LPVOID>(&hkPlayerManagerSetMainPlayer),
-                reinterpret_cast<LPVOID*>(&oPlayerManagerSetMainPlayer)
-                );
-    }
+    InstallCoreHooks();
 
     return true;
 }
@@ -2366,7 +2400,7 @@ void InstallD3D11Hook()
     {
         if (void* present = GetPresentAddress())
         {
-            if (InstallHooks(present))
+            if (InitMinhook(present))
                 break;
         }
         Sleep(1000);
