@@ -17,14 +17,15 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    container: archlinux:latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v6
 
       - name: Install Build Dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y cmake mingw-w64 python3 zip
+          pacman -Syu --noconfirm git cmake make mingw-w64-gcc python zip github-cli
 
       - name: Determine Version
         run: |
@@ -37,10 +38,12 @@ jobs:
 
       - name: Configure
         run: |
+          set -eux
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
         run: |
+          set -eux
           cmake --build build --parallel
 
       - name: Package
